@@ -1,9 +1,7 @@
 #
 # Build
 #
-FROM debian:10 AS build
-
-RUN apt-get update && apt-get -y install maven
+FROM maven:3.9-eclipse-temurin-8 AS build
 
 WORKDIR /opt/shipping
 

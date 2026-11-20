@@ -152,7 +152,7 @@ services:
       - shipping
       - payment
     ports:
-      - "8080:8080"
+      - "8085:8080"
     networks:
       - robot-shop
     healthcheck:
