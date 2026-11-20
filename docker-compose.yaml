@@ -146,9 +146,11 @@ services:
       interval: 10s
       timeout: 10s
       retries: 3
-    # Uncomment to change payment gateway
-    #environment:
-      #PAYMENT_GATEWAY: "https://www.worldpay.com"
+    environment:
+      # payment only checks that this URL answers HTTP 200 before accepting an
+      # order. The app's built-in default (https://paypal.com/) returns 403 to
+      # cloud servers, which made every checkout fail. Override in .env if needed.
+      PAYMENT_GATEWAY: ${PAYMENT_GATEWAY:-https://example.com/}
     logging: *logging
 
   dispatch:

@@ -1,0 +1,409 @@
+<title>RabbitMQ in Robot Shop</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: single reading column (max ~760px) with wide blocks (diagram, tables, code) allowed to 980px */
+:root{
+  --bg:#f6f8f8; --surface:#ffffff; --fg:#14211f; --muted:#56676a; --line:#d5dfde;
+  --teal:#0f6e6a; --teal-soft:#e1f0ee; --amber:#c27a0a; --amber-soft:#fbefd9;
+  --red:#b3332b; --red-soft:#f8e3e1; --green:#2d7a3e; --green-soft:#e2f2e5;
+  --code-bg:#102422; --code-fg:#dbece9;
+  --f-display:"Space Grotesk",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0d1716; --surface:#13201f; --fg:#e3eeec; --muted:#97aaa8; --line:#26393a;
+  --teal:#4fc2b9; --teal-soft:#16302e; --amber:#f0b04a; --amber-soft:#33270f;
+  --red:#ef8a80; --red-soft:#3a1d1a; --green:#7fcf8e; --green-soft:#17301c;
+  --code-bg:#081110; --code-fg:#d3e6e3; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d1716; --surface:#13201f; --fg:#e3eeec; --muted:#97aaa8; --line:#26393a;
+  --teal:#4fc2b9; --teal-soft:#16302e; --amber:#f0b04a; --amber-soft:#33270f;
+  --red:#ef8a80; --red-soft:#3a1d1a; --green:#7fcf8e; --green-soft:#17301c;
+  --code-bg:#081110; --code-fg:#d3e6e3; color-scheme:dark}
+
+body{background:var(--bg);color:var(--fg);font:16px/1.65 var(--f-body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 64px}
+.wrap{max-width:980px;margin:0 auto}
+.col{max-width:760px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;line-height:1.2;margin:0}
+h1{font-size:clamp(2rem,5vw,2.9rem);font-weight:700;letter-spacing:-.01em}
+h2{font-size:1.55rem;font-weight:700}
+h3{font-size:1.1rem;font-weight:500}
+p{margin:0}
+a{color:var(--teal)}
+code{font-family:var(--f-mono);font-size:.88em;background:var(--teal-soft);color:var(--fg);padding:.08em .35em;border-radius:4px}
+.eyebrow{font:600 .75rem/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--teal)}
+header{padding-block:48px 28px;display:grid;gap:14px;border-bottom:1px solid var(--line)}
+header .lede{font-size:1.15rem;color:var(--muted);max-width:62ch}
+nav.toc{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:.9rem;padding-top:6px}
+nav.toc a{text-decoration:none;color:var(--muted)}
+nav.toc a:hover,nav.toc a:focus-visible{color:var(--teal)}
+section{padding-block:44px 8px;display:grid;gap:18px}
+section > .col{display:grid;gap:14px}
+.note{border-left:3px solid var(--amber);background:var(--amber-soft);padding:12px 16px;border-radius:0 6px 6px 0}
+.warn{border-left:3px solid var(--red);background:var(--red-soft);padding:12px 16px;border-radius:0 6px 6px 0}
+
+/* compare */
+.compare{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.compare > div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:18px;display:grid;gap:8px;min-width:0}
+.compare .tag{font:600 .72rem/1 var(--f-mono);letter-spacing:.1em;text-transform:uppercase}
+.compare .bad .tag{color:var(--red)} .compare .good .tag{color:var(--green)}
+.compare ul{margin:0;padding-left:1.1em;color:var(--muted)}
+
+/* tables */
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:.95rem}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 .75rem/1.2 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:var(--bg)}
+tr:last-child td{border-bottom:0}
+td:first-child{font-weight:600;white-space:nowrap}
+
+/* simulator */
+.sim{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:14px}
+.sim-diagram{overflow-x:auto}
+.sim svg{display:block;width:100%;min-width:640px;height:auto}
+.sim svg text{font-family:var(--f-body);fill:var(--fg)}
+.sim svg .small{font:12px var(--f-mono);fill:var(--muted)}
+.sim svg .box{fill:var(--bg);stroke:var(--line);stroke-width:1.5}
+.sim svg .box.ex{fill:var(--teal-soft);stroke:var(--teal)}
+.sim svg .box.q{fill:var(--amber-soft);stroke:var(--amber)}
+.sim svg .box.down{fill:var(--red-soft);stroke:var(--red);stroke-dasharray:5 4}
+.sim svg .wire{stroke:var(--muted);stroke-width:1.5;fill:none}
+.sim svg .msg{fill:var(--amber);stroke:var(--surface);stroke-width:1.5}
+.sim svg .slot{fill:var(--amber)}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button{font:500 .95rem var(--f-body);border-radius:6px;padding:8px 14px;border:1px solid var(--teal);background:var(--teal);color:var(--surface);cursor:pointer}
+button.ghost{background:transparent;color:var(--teal)}
+button:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.status{font:500 .9rem var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.log{font:13px/1.5 var(--f-mono);background:var(--code-bg);color:var(--code-fg);border-radius:6px;padding:10px 12px;height:116px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+
+/* steps */
+ol.steps{margin:0;padding:0;list-style:none;counter-reset:s;display:grid;gap:12px}
+ol.steps li{counter-increment:s;display:grid;grid-template-columns:2rem 1fr;gap:12px;align-items:start}
+ol.steps li::before{content:counter(s);font:700 .95rem/2rem var(--f-display);text-align:center;width:2rem;height:2rem;border-radius:50%;background:var(--teal-soft);color:var(--teal)}
+ol.steps li > div{min-width:0}
+
+/* code */
+.code{position:relative;min-width:0}
+.code .label{font:600 .72rem/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;display:block}
+pre{margin:0;background:var(--code-bg);color:var(--code-fg);border-radius:8px;padding:14px 16px;overflow-x:auto;font:13.5px/1.6 var(--f-mono)}
+pre .c{color:#7fa6a1} pre .k{color:#f0b04a}
+.copy{position:absolute;top:22px;right:8px;padding:3px 9px;font-size:.78rem;background:transparent;border-color:#3c5a57;color:#bcd6d2}
+.out{background:var(--surface);color:var(--fg);border:1px dashed var(--line)}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+
+/* lab */
+.lab{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px;display:grid;gap:12px}
+.lab h3{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.lab h3 .eyebrow{font-size:.7rem}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+details summary{cursor:pointer;font-weight:600}
+details p{margin-top:8px;color:var(--muted)}
+.qs{display:grid;gap:10px}
+footer{padding-top:40px;color:var(--muted);font-size:.9rem;border-top:1px solid var(--line);margin-top:40px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+<header>
+  <span class="eyebrow">Containers &amp; microservices · Session notes</span>
+  <h1>RabbitMQ in Robot Shop</h1>
+  <p class="lede">How the payment service hands a new order to the dispatch service without waiting for it, and how to watch every step on the running stack.</p>
+  <nav class="toc" aria-label="Sections">
+    <a href="#why">Why a queue</a><a href="#pieces">The pieces</a><a href="#sim">Try it</a>
+    <a href="#flow">One checkout</a><a href="#code">The code</a><a href="#types">Exchange types</a>
+    <a href="#lab">Hands-on lab</a><a href="#pitfalls">What can go wrong</a><a href="#quiz">Check yourself</a>
+  </nav>
+</header>
+
+<section id="why">
+  <div class="col">
+    <span class="eyebrow">The problem</span>
+    <h2>Why put a queue between two services?</h2>
+    <p>When a customer pays, Robot Shop must also ship the order. Shipping is slow and can fail. If <code>payment</code> called <code>dispatch</code> directly, the customer would wait for it, and a crashed dispatch would break checkout.</p>
+  </div>
+  <div class="compare">
+    <div class="bad"><span class="tag">Direct HTTP call</span><h3>payment → dispatch</h3>
+      <ul><li>Customer waits until dispatch finishes</li><li>Dispatch down = checkout fails</li><li>A burst of orders hits dispatch all at once</li></ul></div>
+    <div class="good"><span class="tag">Through RabbitMQ</span><h3>payment → broker → dispatch</h3>
+      <ul><li>Payment drops the order in a queue and replies at once</li><li>Dispatch down = orders wait in the queue</li><li>Dispatch works through the queue at its own pace</li></ul></div>
+  </div>
+  <div class="col"><p class="note">RabbitMQ is a <strong>message broker</strong>: a post office for services. The sender does not need to know who reads the message, where they run, or whether they are up right now.</p></div>
+</section>
+
+<section id="pieces">
+  <div class="col">
+    <span class="eyebrow">Vocabulary</span>
+    <h2>The pieces, with Robot Shop's real names</h2>
+    <p>These names come from <code>payment/rabbitmq.py</code> and <code>dispatch/main.go</code>.</p>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th>Term</th><th>What it is</th><th>In Robot Shop</th></tr></thead>
+    <tbody>
+      <tr><td>Producer</td><td>The service that sends messages</td><td><code>payment</code> (Python, pika library)</td></tr>
+      <tr><td>Exchange</td><td>The sorting office. Producers always send to an exchange, never straight to a queue.</td><td><code>robot-shop</code>, type <code>direct</code>, durable</td></tr>
+      <tr><td>Routing key</td><td>The address label on each message</td><td><code>orders</code></td></tr>
+      <tr><td>Binding</td><td>A rule: "messages on this exchange with key X go to queue Y"</td><td><code>robot-shop</code> + key <code>orders</code> → queue <code>orders</code></td></tr>
+      <tr><td>Queue</td><td>The mailbox where messages wait, in order, until read</td><td><code>orders</code>, durable</td></tr>
+      <tr><td>Consumer</td><td>The service that reads from a queue</td><td><code>dispatch</code> (Go, streadway/amqp)</td></tr>
+      <tr><td>Ack</td><td>The consumer's receipt: "done, you can delete it"</td><td>dispatch uses <strong>auto-ack</strong> (deleted as soon as delivered)</td></tr>
+      <tr><td>Connection / channel</td><td>One TCP connection on port 5672; channels are lightweight sessions inside it</td><td>user <code>guest</code> / <code>guest</code>, vhost <code>/</code></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="sim">
+  <div class="col">
+    <span class="eyebrow">Interactive</span>
+    <h2>Try it: place orders, then take dispatch down</h2>
+    <p>Each dot is one order message. Stop the consumer and the queue fills up; start it again and the backlog drains. That is exactly what you will see on the real stack in Lab 3.</p>
+  </div>
+  <div class="sim">
+    <div class="sim-diagram">
+      <svg id="diagram" viewBox="0 0 760 210" role="img" aria-label="payment publishes to exchange robot-shop, which routes key orders to queue orders, consumed by dispatch">
+        <path class="wire" d="M150 105 H230"/><path class="wire" d="M370 105 H440"/><path class="wire" d="M600 105 H630"/>
+        <rect class="box" x="20" y="70" width="130" height="70" rx="8"/>
+        <text x="85" y="101" text-anchor="middle" font-weight="600">payment</text><text class="small" x="85" y="122" text-anchor="middle">producer</text>
+        <rect class="box ex" x="230" y="70" width="140" height="70" rx="8"/>
+        <text x="300" y="101" text-anchor="middle" font-weight="600">robot-shop</text><text class="small" x="300" y="122" text-anchor="middle">exchange · direct</text>
+        <text class="small" x="405" y="94" text-anchor="middle">key</text><text class="small" x="405" y="125" text-anchor="middle">orders</text>
+        <rect class="box q" x="440" y="70" width="160" height="70" rx="8"/>
+        <text x="520" y="62" text-anchor="middle" font-weight="600">queue: orders</text>
+        <g id="slots"></g>
+        <rect id="consumer" class="box" x="630" y="70" width="115" height="70" rx="8"/>
+        <text x="687" y="101" text-anchor="middle" font-weight="600">dispatch</text><text id="consumerLabel" class="small" x="687" y="122" text-anchor="middle">consumer · up</text>
+        <text class="small" x="520" y="165" text-anchor="middle" id="qcount">0 messages waiting</text>
+        <circle id="dot" class="msg" r="8" cx="85" cy="105" opacity="0"/>
+      </svg>
+    </div>
+    <div class="controls">
+      <button id="btnOrder" type="button">Place an order</button>
+      <button id="btnBurst" type="button" class="ghost">Place 5 orders</button>
+      <button id="btnConsumer" type="button" class="ghost">Stop dispatch</button>
+      <span class="status" id="stats">published 0 · delivered 0</span>
+    </div>
+    <div class="log" id="log" aria-live="polite">dispatch: Waiting for messages</div>
+  </div>
+</section>
+
+<section id="flow">
+  <div class="col">
+    <span class="eyebrow">Sequence</span>
+    <h2>What happens during one checkout</h2>
+    <ol class="steps">
+      <li><div>The browser calls <code>POST /api/payment/pay/&lt;user&gt;</code> with the cart. nginx in <code>web</code> forwards it to <code>payment:8080</code>.</div></li>
+      <li><div>Payment checks the cart (it must include a shipping line), calls the payment gateway, and creates an order id (a UUID).</div></li>
+      <li><div>Payment connects to <code>rabbitmq:5672</code>, declares the exchange <code>robot-shop</code> (safe to repeat), and publishes the order as JSON with routing key <code>orders</code>.</div></li>
+      <li><div>The exchange checks its bindings. Key <code>orders</code> matches the binding to queue <code>orders</code>, so the message is stored there.</div></li>
+      <li><div>Payment replies to the browser with <code>{"orderid": "…"}</code> straight away. It does not wait for dispatch.</div></li>
+      <li><div>Dispatch is subscribed to <code>orders</code>. RabbitMQ pushes the message to it, and with auto-ack it is removed from the queue immediately.</div></li>
+      <li><div>Dispatch logs <code>Order {…}</code> and "processes" the sale (in this demo, a short sleep).</div></li>
+    </ol>
+    <p class="note">Dispatch also declares the exchange, the queue and the binding when it starts. Whichever service starts first creates them; declaring something that already exists with the same settings does nothing. That is why the start order of the containers does not matter.</p>
+  </div>
+</section>
+
+<section id="code">
+  <div class="col">
+    <span class="eyebrow">Source</span>
+    <h2>The code, cut down to the RabbitMQ parts</h2>
+  </div>
+  <div class="two">
+    <div class="code"><span class="label">payment/rabbitmq.py · producer</span>
+<pre><span class="c"># connect and make sure the exchange exists</span>
+conn = pika.BlockingConnection(params)   <span class="c"># host=rabbitmq, guest/guest</span>
+channel = conn.channel()
+channel.exchange_declare(exchange=<span class="k">'robot-shop'</span>,
+                         exchange_type=<span class="k">'direct'</span>, durable=True)
+
+<span class="c"># publish one order</span>
+channel.basic_publish(exchange=<span class="k">'robot-shop'</span>,
+                      routing_key=<span class="k">'orders'</span>,
+                      properties=pika.BasicProperties(headers=headers),
+                      body=json.dumps(order).encode())</pre></div>
+    <div class="code"><span class="label">dispatch/main.go · consumer</span>
+<pre><span class="c">// declare the same exchange, plus queue and binding</span>
+ch.ExchangeDeclare(<span class="k">"robot-shop"</span>, <span class="k">"direct"</span>, true, false, false, false, nil)
+q, _ := ch.QueueDeclare(<span class="k">"orders"</span>, true, false, false, false, nil)
+ch.QueueBind(q.Name, <span class="k">"orders"</span>, <span class="k">"robot-shop"</span>, false, nil)
+
+<span class="c">// subscribe; 3rd argument true = auto-ack</span>
+msgs, _ := ch.Consume(<span class="k">"orders"</span>, <span class="k">""</span>, true, false, false, false, nil)
+for d := range msgs {
+    log.Printf(<span class="k">"Order %s\n"</span>, d.Body)
+}</pre></div>
+  </div>
+</section>
+
+<section id="types">
+  <div class="col">
+    <span class="eyebrow">Beyond this app</span>
+    <h2>The four exchange types</h2>
+    <p>Robot Shop uses <code>direct</code>. The type decides how the exchange matches a routing key to bindings.</p>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th>Type</th><th>Routes a message to…</th><th>Typical use</th></tr></thead>
+    <tbody>
+      <tr><td>direct</td><td>Queues whose binding key equals the routing key exactly</td><td>Task queues: <code>orders</code>, <code>emails</code></td></tr>
+      <tr><td>fanout</td><td>Every bound queue, ignoring the key</td><td>Broadcast: "order placed" to billing, stock and analytics</td></tr>
+      <tr><td>topic</td><td>Queues whose pattern matches: <code>*</code> = one word, <code>#</code> = zero or more</td><td><code>orders.eu.*</code>, <code>logs.#</code></td></tr>
+      <tr><td>headers</td><td>Queues whose header rules match the message headers</td><td>Routing on several attributes at once</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="lab">
+  <div class="col">
+    <span class="eyebrow">Hands-on</span>
+    <h2>Lab: watch RabbitMQ on the running stack</h2>
+    <p>Run these on the Ubuntu server, inside the <code>robot-shop-docker</code> folder, after <code>podman-compose up -d --build</code>. Use the latest code (<code>git pull</code>); older copies fail every checkout with "payment error". The outputs shown were captured from a real run.</p>
+  </div>
+
+  <div class="lab col">
+    <h3><span class="eyebrow">Lab 1</span> Inspect the broker</h3>
+    <p>RabbitMQ ships with a CLI, <code>rabbitmqctl</code>. Run it inside the container:</p>
+    <div class="code"><span class="label">command</span><pre>podman-compose exec rabbitmq rabbitmqctl -q list_exchanges name type durable
+podman-compose exec rabbitmq rabbitmqctl -q list_queues name messages consumers durable
+podman-compose exec rabbitmq rabbitmqctl -q list_bindings source_name destination_name routing_key
+podman-compose exec rabbitmq rabbitmqctl -q list_connections user peer_host state</pre></div>
+    <div class="code"><span class="label">you should see (trimmed)</span><pre class="out">robot-shop   direct   true
+orders       0        1        true
+robot-shop   orders   orders
+guest        10.89.0.17   running
+guest        10.89.0.10   running</pre></div>
+    <p>Find the exchange, the queue, the binding between them, and one connection each for payment and dispatch. <code>consumers 1</code> is dispatch.</p>
+  </div>
+
+  <div class="lab col">
+    <h3><span class="eyebrow">Lab 2</span> Place an order and watch it arrive</h3>
+    <p>Open a second terminal and follow the dispatch log:</p>
+    <div class="code"><span class="label">terminal 2</span><pre>podman-compose logs -f dispatch</pre></div>
+    <p>In the first terminal, place an order through the web gateway (cart → shipping → payment):</p>
+    <div class="code"><span class="label">terminal 1</span><pre>B=http://localhost:8085/api
+U=student1
+curl -s $B/cart/add/$U/Watson/1 &gt; /dev/null
+curl -s -X POST -H "Content-Type: application/json" \
+     -d '{"location":"India Chennai","cost":9,"distance":100}' $B/shipping/confirm/$U &gt; /dev/null
+curl -s -X POST -H "Content-Type: application/json" \
+     -d "$(curl -s $B/cart/cart/$U)" $B/payment/pay/$U</pre></div>
+    <div class="code"><span class="label">terminal 1 output · then terminal 2</span><pre class="out">{"orderid":"4c3711cc-c765-47eb-be26-1bbb4fa3049c"}
+
+dispatch: Order {"orderid": "4c3711cc-…", "user": "student1", "cart": {"total": 2010, …}}</pre></div>
+    <p>Also check <code>podman-compose logs payment</code>: you will see <code>queue order</code>, <code>connected to broker</code>, <code>message sent</code>.</p>
+  </div>
+
+  <div class="lab col">
+    <h3><span class="eyebrow">Lab 3</span> Stop the consumer: the queue keeps the orders</h3>
+    <div class="code"><span class="label">command</span><pre>podman-compose stop dispatch
+<span class="c"># place 3 orders (repeat the Lab 2 commands with U=student2, student3, student4)</span>
+podman-compose exec rabbitmq rabbitmqctl -q list_queues name messages consumers</pre></div>
+    <div class="code"><span class="label">output</span><pre class="out">orders   3   0</pre></div>
+    <p>Checkout still worked for all three customers, even with dispatch down. Peek at the first message without removing it:</p>
+    <div class="code"><span class="label">command</span><pre>podman-compose exec rabbitmq rabbitmqadmin get queue=orders count=1 ackmode=ack_requeue_true</pre></div>
+    <p>Now start dispatch again and check the queue:</p>
+    <div class="code"><span class="label">command</span><pre>podman-compose start dispatch
+podman-compose exec rabbitmq rabbitmqctl -q list_queues name messages consumers
+podman-compose logs --tail 5 dispatch</pre></div>
+    <div class="code"><span class="label">output</span><pre class="out">orders   0   1
+Order {"orderid": "a05c6c87-…", "user": "student2", …}
+Order {"orderid": "b044ffad-…", "user": "student3", …}
+Order {"orderid": "f4ae6dbe-…", "user": "student4", …}</pre></div>
+    <p>The backlog drained within a second, in the same order the messages were published (first in, first out).</p>
+  </div>
+
+  <div class="lab col">
+    <h3><span class="eyebrow">Lab 4</span> Publish by hand, and see routing fail</h3>
+    <div class="code"><span class="label">command</span><pre>podman-compose exec rabbitmq rabbitmqadmin publish exchange=robot-shop \
+    routing_key=orders payload='{"orderid":"manual-001","user":"trainer","cart":{}}'
+
+podman-compose exec rabbitmq rabbitmqadmin publish exchange=robot-shop \
+    routing_key=wrong-key payload='{"orderid":"lost-001"}'</pre></div>
+    <div class="code"><span class="label">output</span><pre class="out">Message published
+Message published but NOT routed</pre></div>
+    <p>The first message shows up in the dispatch log. The second has no binding for <code>wrong-key</code>, so the exchange drops it silently: it never reaches any queue.</p>
+  </div>
+</section>
+
+<section id="pitfalls">
+  <div class="col">
+    <span class="eyebrow">Reliability</span>
+    <h2>What can go wrong in this setup</h2>
+    <p>Robot Shop is a demo, and it takes shortcuts that a real shop should not. Each of these makes a good discussion point.</p>
+    <div class="warn"><strong>A durable queue is not the same as durable messages.</strong> The <code>orders</code> queue is durable, so it survives a broker restart. But payment publishes without <code>delivery_mode=2</code> (persistent), so the messages inside it do not. We tested this: with dispatch stopped and 1 order waiting, <code>podman-compose restart rabbitmq</code> left the queue in place with <strong>0 messages</strong>. The order was lost.</div>
+    <div class="warn"><strong>Auto-ack loses work if the consumer crashes.</strong> Dispatch consumes with auto-ack, so RabbitMQ deletes the message the moment it is delivered. If dispatch dies halfway through, that order is gone. With manual acks the consumer calls <code>d.Ack()</code> after finishing, and unacknowledged messages are re-delivered.</div>
+    <div class="warn"><strong>Unroutable messages vanish.</strong> As Lab 4 showed, a typo in the routing key drops the message without an error. The fix is to publish with the <code>mandatory</code> flag or to configure an alternate exchange.</div>
+    <div class="warn"><strong>Default credentials.</strong> Both services log in as <code>guest</code> / <code>guest</code>. That only works because they are on the same private container network. In production, create a dedicated user per service.</div>
+    <div class="warn"><strong>No volume for the broker.</strong> RabbitMQ's data lives inside the container. Removing the container (<code>podman-compose down</code>) deletes everything, even persistent messages, unless <code>/var/lib/rabbitmq</code> is on a volume.</div>
+  </div>
+</section>
+
+<section id="quiz">
+  <div class="col">
+    <span class="eyebrow">Recap</span>
+    <h2>Check yourself</h2>
+    <div class="qs">
+      <details><summary>Does payment send the order straight to the <code>orders</code> queue?</summary><p>No. Producers always publish to an exchange (<code>robot-shop</code>). The binding with key <code>orders</code> is what puts it in the <code>orders</code> queue.</p></details>
+      <details><summary>Dispatch is down for 10 minutes. What happens to checkouts?</summary><p>They keep working. Orders pile up in the <code>orders</code> queue and dispatch processes the backlog when it comes back (Lab 3).</p></details>
+      <details><summary>Why can the containers start in any order?</summary><p>Both services declare the exchange (and dispatch also declares the queue and binding) when they connect. Declaring an existing object with the same settings is a no-op, and both services retry until the broker is reachable.</p></details>
+      <details><summary>You want billing and analytics to get a copy of every order. What changes?</summary><p>Bind two more queues (<code>billing</code>, <code>analytics</code>) to <code>robot-shop</code> with key <code>orders</code>, or switch to a <code>fanout</code> exchange. Payment does not change at all, which is the point of a broker.</p></details>
+      <details><summary>Name two changes that would stop orders from being lost.</summary><p>Publish persistent messages (<code>delivery_mode=2</code>) and use manual acks in dispatch. Also keep RabbitMQ's data on a volume.</p></details>
+    </div>
+  </div>
+</section>
+
+<footer class="col">Based on the Robot Shop source in github.com/Msocial123/robot-shop-docker. Commands tested with podman-compose 1.5 on Ubuntu 26.04 with RabbitMQ 3.8.</footer>
+</div>
+
+<script>
+(function(){
+  var NS='http://www.w3.org/2000/svg';
+  var dot=document.getElementById('dot'), slots=document.getElementById('slots');
+  var consumerBox=document.getElementById('consumer'), consumerLabel=document.getElementById('consumerLabel');
+  var qcount=document.getElementById('qcount'), stats=document.getElementById('stats'), logEl=document.getElementById('log');
+  var btnC=document.getElementById('btnConsumer');
+  var queue=[], up=true, published=0, delivered=0, busy=false, seq=0;
+  var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function log(t){logEl.textContent+='\n'+t;logEl.scrollTop=logEl.scrollHeight;}
+  function id(){seq++;return 'o-'+(1000+seq);}
+  function draw(){
+    while(slots.firstChild)slots.removeChild(slots.firstChild);
+    var n=Math.min(queue.length,8);
+    for(var i=0;i<n;i++){var c=document.createElementNS(NS,'circle');c.setAttribute('class','slot');c.setAttribute('r','7');
+      c.setAttribute('cx',String(585-i*18));c.setAttribute('cy','105');slots.appendChild(c);}
+    qcount.textContent=queue.length+(queue.length===1?' message waiting':' messages waiting')+(queue.length>8?' (showing 8)':'');
+    stats.textContent='published '+published+' · delivered '+delivered;
+  }
+  function move(x0,x1,ms,cb){
+    if(reduce){cb();return;}
+    dot.setAttribute('opacity','1');var t0=null;
+    function step(t){if(!t0)t0=t;var p=Math.min(1,(t-t0)/ms);dot.setAttribute('cx',String(x0+(x1-x0)*p));
+      if(p<1)requestAnimationFrame(step);else{dot.setAttribute('opacity','0');cb();}}
+    requestAnimationFrame(step);
+  }
+  function publish(){
+    var o=id();published++;
+    log('payment: publish '+o+' -> exchange robot-shop, key orders');
+    move(85,520,700,function(){queue.push(o);log('broker:  routed '+o+' to queue orders');draw();pump();});
+  }
+  function pump(){
+    if(!up||busy||queue.length===0)return;
+    busy=true;var o=queue.shift();draw();
+    move(600,687,450,function(){delivered++;log('dispatch: Order {"orderid":"'+o+'"}  (auto-ack)');draw();busy=false;setTimeout(pump,reduce?0:150);});
+  }
+  document.getElementById('btnOrder').addEventListener('click',publish);
+  document.getElementById('btnBurst').addEventListener('click',function(){for(var i=0;i<5;i++)setTimeout(publish,i*220);});
+  btnC.addEventListener('click',function(){
+    up=!up;
+    consumerBox.setAttribute('class',up?'box':'box down');
+    consumerLabel.textContent=up?'consumer · up':'consumer · down';
+    btnC.textContent=up?'Stop dispatch':'Start dispatch';
+    log(up?'dispatch: Rabbit MQ ready true  (consumers 1)':'dispatch: stopped  (consumers 0)');
+    pump();
+  });
+  draw();
+})();
+</script>
