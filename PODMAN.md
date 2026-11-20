@@ -1,7 +1,6 @@
 # Running Robot Shop with Podman on Ubuntu
 
-Tested on Ubuntu 26.04 with Podman 5.7 and podman-compose 1.5. It worked both as a normal user
-(rootless) and as root, with ufw active.
+The Compose file is generic. Anything specific to one machine (port, firewall) is set in `.env` or on the host.
 
 ## 1. Install
 
@@ -20,63 +19,47 @@ cd robot-shop-docker
 If you already have a clone, update it first (`git pull`). Older copies still use `debian:10` and
 `golang:1.17`, and those no longer build.
 
-## 3. Build and start (recommended: rootless, as your normal user, no sudo)
+## 3. Build and start
+
+As your normal user (rootless, recommended) or with `sudo`, the same command works:
 
 ```bash
-podman-compose --podman-build-args=--network=host up -d --build
+podman-compose up -d --build        # or: podman compose up -d --build / docker compose up -d --build
 podman ps
 ```
 
-Open `http://<server-ip>:8085/`. To use a different port, change `WEB_PORT` in `.env`.
-
-### Running as root (`sudo podman compose ...`)
-
-Use the same command with `sudo`. The `--podman-build-args=--network=host` part is required as root:
-
-```bash
-sudo podman-compose --podman-build-args=--network=host up -d --build
-```
+Open `http://<server-ip>:8085/`. To use another port, change `WEB_PORT` in `.env`.
 
 ## 4. Expose the port
 
-Rootless (recommended):
+* Rootless Podman / Docker: `sudo ufw allow 8085/tcp`
+* Root Podman: published ports go through the FORWARD chain, so also run
+  `sudo ufw route allow proto tcp to any port 8080`
+* Cloud VM: add an inbound TCP 8085 rule to the security group / firewall.
 
-```bash
-sudo ufw allow 8085/tcp
-```
-
-Root: published ports go through the FORWARD chain, so `ufw allow 8085` is **not** enough:
-
-```bash
-sudo ufw route allow proto tcp to 10.253.7.0/24 port 8080
-```
-
-On a cloud VM, also add an inbound TCP 8085 rule to the security group / firewall.
-
-## Why the build fails with "Temporary failure in name resolution"
+## Troubleshooting: "Temporary failure in name resolution" during build (root Podman + ufw)
 
 Symptoms: `npm ERR! EAI_AGAIN`, `Temporary failure resolving 'deb.debian.org'`,
 `apk ... DNS: transient error`, `read udp 10.88.0.x -> <dns>:53: i/o timeout`.
 
-As root, build containers run on the Podman bridge (`podman0`, 10.88.0.0/16). Their DNS and
-download traffic is *routed* through the host. Ubuntu's ufw default is `deny (routed)`, so that
-traffic is dropped (`[UFW BLOCK] IN=podman0 OUT=<nic> ... DPT=53` in `journalctl -k`).
+This comes from the host firewall, not the Compose file. As root, containers sit on the Podman bridge
+(`podman0`, 10.88.0.0/16). Their traffic to the internet is *routed* through the host, and Ubuntu's
+ufw default is `deny (routed)`, so DNS gets dropped. Check with
+`sudo journalctl -k | grep "UFW BLOCK" | grep podman`.
 
-Fixes, any one of:
+Fix it on the host with any one of:
 
-* Build with the host network: `--podman-build-args=--network=host` (as above).
-  Docker Compose uses `build.network: host`, which is already set in `docker-compose.yaml`.
-  podman-compose ignores that key, so the flag is needed.
-* Run rootless. Rootless networking (pasta / slirp4netns) does not go through ufw's FORWARD chain.
-* Allow routed traffic from Podman bridges: `sudo ufw route allow in on podman0`
-  (plus `sudo ufw allow in on podman+ to any port 53` for container-to-container DNS).
+* Run rootless (no `sudo`). Rootless networking does not go through ufw's FORWARD chain.
+* Allow routed traffic and DNS from Podman bridges (one-time, per host):
+  ```bash
+  sudo ufw route allow in on podman0
+  sudo ufw route allow in on podman1
+  sudo ufw allow in on podman+ to any port 53
+  ```
+  (`podman1`, `podman2`, and so on are the bridges compose networks create. `podman network inspect` shows the name.)
+* Build only, without changing ufw: `sudo podman-compose --podman-build-args=--network=host build`.
 
-At runtime the stack does not depend on container DNS. Each service has a fixed IP
-(`RS_SUBNET_PREFIX` in `.env`, default `10.253.7`) and an `/etc/hosts` entry for every other
-service, so `mongodb`, `mysql`, `rabbitmq` and the other service names resolve even when ufw
-blocks DNS.
-
-## Other portability changes
+## Other portability notes
 
 * All images are fully qualified (`docker.io/library/...`). A fresh Ubuntu Podman has no
   unqualified-search registry, so short names such as `redis:6.2` fail with
