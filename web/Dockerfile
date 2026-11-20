@@ -1,4 +1,4 @@
-FROM alpine AS build
+FROM docker.io/library/alpine:3.20 AS build
 ARG KEY
 
 WORKDIR /instana
@@ -21,7 +21,7 @@ RUN if [ -n "$KEY" ]; then \
     fi
 
 
-FROM nginx:1.21.6
+FROM docker.io/library/nginx:1.21.6
 
 EXPOSE 8080
 

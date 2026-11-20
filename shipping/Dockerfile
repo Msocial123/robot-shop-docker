@@ -1,7 +1,7 @@
 #
 # Build
 #
-FROM maven:3.9-eclipse-temurin-8 AS build
+FROM docker.io/library/maven:3.9-eclipse-temurin-8 AS build
 
 WORKDIR /opt/shipping
 
@@ -13,7 +13,7 @@ RUN mvn package
 #
 # Run
 #
-FROM eclipse-temurin:8-jdk
+FROM docker.io/library/eclipse-temurin:8-jdk
 
 EXPOSE 8080
 

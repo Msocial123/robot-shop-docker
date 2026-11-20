@@ -1,18 +1,14 @@
-FROM mysql:5.7
+# MariaDB instead of mysql:5.7:
+#  - mysql:5.7 is EOL and amd64-only (fails on ARM Ubuntu)
+#  - on Ubuntu hosts that have MySQL installed, the host AppArmor profile for
+#    /usr/sbin/mysqld also confines the container's mysqld, so `podman stop`
+#    cannot signal it and the container hangs in "Stopping". MariaDB's binary
+#    is /usr/sbin/mariadbd, which that profile does not match.
+FROM docker.io/library/mariadb:10.11
 
-VOLUME /data
-
-ENV MYSQL_ALLOW_EMPTY_PASSWORD=yes \
-    MYSQL_DATABASE=cities \
-    MYSQL_USER=shipping \
-    MYSQL_PASSWORD=secret
-
-# change datadir entry in /etc/mysql/my.cnf
-COPY config.sh /root/
-RUN /root/config.sh
+ENV MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=yes \
+    MARIADB_DATABASE=cities \
+    MARIADB_USER=shipping \
+    MARIADB_PASSWORD=secret
 
 COPY scripts/* /docker-entrypoint-initdb.d/
-
-#RUN /entrypoint.sh mysqld & while [ ! -f /tmp/finished ]; do sleep 10; done
-#RUN rm /docker-entrypoint-initdb.d/*
-

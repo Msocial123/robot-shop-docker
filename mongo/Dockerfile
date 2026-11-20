@@ -1,4 +1,4 @@
-FROM mongo:5
+FROM docker.io/library/mongo:5
 
 COPY *.js /docker-entrypoint-initdb.d/
 

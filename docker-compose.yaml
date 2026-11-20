@@ -1,160 +1,224 @@
-version: '3'
+# Robot Shop - works with Docker Compose and with podman-compose (rootless or root).
+#
+# Portability notes (Ubuntu + Podman):
+#  - All images are fully qualified (docker.io/...): a fresh Ubuntu Podman has no
+#    "unqualified-search registries", so short names like "redis:6.2" fail to pull.
+#  - Builds use the host network: with ufw active, ROOT Podman containers cannot
+#    reach DNS on the Podman bridge, so npm/pip/apt/maven/go downloads fail.
+#  - Every service has a fixed IP and an /etc/hosts entry for every other service
+#    (extra_hosts), so service names resolve even where container DNS is blocked.
+#    Change RS_SUBNET_PREFIX in .env if 10.253.7.0/24 clashes with your network.
+#  - Web is published on WEB_PORT (default 8085).
+
+x-logging: &logging
+  driver: "json-file"
+  options:
+    max-size: "25m"
+    max-file: "2"
+
+x-hosts: &hosts
+  - "mongodb:${RS_SUBNET_PREFIX:-10.253.7}.11"
+  - "redis:${RS_SUBNET_PREFIX:-10.253.7}.12"
+  - "rabbitmq:${RS_SUBNET_PREFIX:-10.253.7}.13"
+  - "mysql:${RS_SUBNET_PREFIX:-10.253.7}.14"
+  - "catalogue:${RS_SUBNET_PREFIX:-10.253.7}.21"
+  - "user:${RS_SUBNET_PREFIX:-10.253.7}.22"
+  - "cart:${RS_SUBNET_PREFIX:-10.253.7}.23"
+  - "shipping:${RS_SUBNET_PREFIX:-10.253.7}.24"
+  - "ratings:${RS_SUBNET_PREFIX:-10.253.7}.25"
+  - "payment:${RS_SUBNET_PREFIX:-10.253.7}.26"
+  - "dispatch:${RS_SUBNET_PREFIX:-10.253.7}.27"
+  - "web:${RS_SUBNET_PREFIX:-10.253.7}.30"
+
 services:
   mongodb:
     build:
       context: mongo
+      network: host
     image: ${REPO}/rs-mongodb:${TAG}
     networks:
-      - robot-shop
-    logging: &logging
-      driver: "json-file"
-      options:
-        max-size: "25m"
-        max-file: "2"
+      robot-shop:
+        ipv4_address: ${RS_SUBNET_PREFIX:-10.253.7}.11
+    extra_hosts: *hosts
+    logging: *logging
+
   redis:
-    image: redis:6.2-alpine
+    image: docker.io/library/redis:6.2-alpine
     networks:
-      - robot-shop
-    logging:
-      <<: *logging
+      robot-shop:
+        ipv4_address: ${RS_SUBNET_PREFIX:-10.253.7}.12
+    extra_hosts: *hosts
+    logging: *logging
+
   rabbitmq:
-    image: rabbitmq:3.8-management-alpine
+    image: docker.io/library/rabbitmq:3.8-management-alpine
     networks:
-      - robot-shop
-    logging:
-      <<: *logging
+      robot-shop:
+        ipv4_address: ${RS_SUBNET_PREFIX:-10.253.7}.13
+    extra_hosts: *hosts
+    logging: *logging
+
+  mysql:
+    build:
+      context: mysql
+      network: host
+    image: ${REPO}/rs-mysql-db:${TAG}
+    cap_add:
+      - NET_ADMIN
+    networks:
+      robot-shop:
+        ipv4_address: ${RS_SUBNET_PREFIX:-10.253.7}.14
+    extra_hosts: *hosts
+    logging: *logging
+
   catalogue:
     build:
       context: catalogue
+      network: host
     image: ${REPO}/rs-catalogue:${TAG}
     depends_on:
       - mongodb
     networks:
-      - robot-shop
+      robot-shop:
+        ipv4_address: ${RS_SUBNET_PREFIX:-10.253.7}.21
+    extra_hosts: *hosts
     healthcheck:
       test: [ "CMD", "curl", "-H", "X-INSTANA-SYNTHETIC: 1", "-f", "http://localhost:8080/health" ]
       interval: 10s
       timeout: 10s
       retries: 3
-    logging:
-      <<: *logging
+    logging: *logging
+
   user:
     build:
       context: user
+      network: host
     image: ${REPO}/rs-user:${TAG}
     depends_on:
       - mongodb
       - redis
     networks:
-      - robot-shop
+      robot-shop:
+        ipv4_address: ${RS_SUBNET_PREFIX:-10.253.7}.22
+    extra_hosts: *hosts
     healthcheck:
       test: [ "CMD", "curl", "-H", "X-INSTANA-SYNTHETIC: 1", "-f", "http://localhost:8080/health" ]
       interval: 10s
       timeout: 10s
       retries: 3
-    logging:
-      <<: *logging
+    logging: *logging
+
   cart:
     build:
       context: cart
+      network: host
     image: ${REPO}/rs-cart:${TAG}
     depends_on:
       - redis
     networks:
-      - robot-shop
+      robot-shop:
+        ipv4_address: ${RS_SUBNET_PREFIX:-10.253.7}.23
+    extra_hosts: *hosts
     healthcheck:
       test: [ "CMD", "curl", "-H", "X-INSTANA-SYNTHETIC: 1", "-f", "http://localhost:8080/health" ]
       interval: 10s
       timeout: 10s
       retries: 3
-    logging:
-      <<: *logging
-  mysql:
-    build:
-      context: mysql
-    image: ${REPO}/rs-mysql-db:${TAG}
-    cap_add:
-      - NET_ADMIN
-    networks:
-      - robot-shop
-    logging:
-      <<: *logging
+    logging: *logging
+
   shipping:
     build:
       context: shipping
+      network: host
     image: ${REPO}/rs-shipping:${TAG}
     depends_on:
       - mysql
     networks:
-      - robot-shop
+      robot-shop:
+        ipv4_address: ${RS_SUBNET_PREFIX:-10.253.7}.24
+    extra_hosts: *hosts
     healthcheck:
-      test: ["CMD", "curl", "-H", "X-INSTANA-SYNTHETIC: 1", "-f", "http://localhost:8080/health"]
+      test: [ "CMD", "curl", "-H", "X-INSTANA-SYNTHETIC: 1", "-f", "http://localhost:8080/health" ]
       interval: 10s
       timeout: 10s
       retries: 3
-    logging:
-      <<: *logging
+    logging: *logging
+
   ratings:
     build:
       context: ratings
+      network: host
     image: ${REPO}/rs-ratings:${TAG}
     environment:
       APP_ENV: prod
-    networks:
-      - robot-shop
     depends_on:
       - mysql
+    networks:
+      robot-shop:
+        ipv4_address: ${RS_SUBNET_PREFIX:-10.253.7}.25
+    extra_hosts: *hosts
     healthcheck:
-      test: ["CMD", "curl", "-H", "X-INSTANA-SYNTHETIC: 1", "-f", "http://localhost/_health"]
+      test: [ "CMD", "curl", "-H", "X-INSTANA-SYNTHETIC: 1", "-f", "http://localhost/_health" ]
       interval: 10s
       timeout: 10s
       retries: 3
-    logging:
-      <<: *logging
+    logging: *logging
+
   payment:
     build:
       context: payment
+      network: host
     image: ${REPO}/rs-payment:${TAG}
     depends_on:
       - rabbitmq
     networks:
-      - robot-shop
+      robot-shop:
+        ipv4_address: ${RS_SUBNET_PREFIX:-10.253.7}.26
+    extra_hosts: *hosts
     healthcheck:
-      test: ["CMD", "curl", "-H", "X-INSTANA-SYNTHETIC: 1", "-f", "http://localhost:8080/health"]
+      test: [ "CMD", "curl", "-H", "X-INSTANA-SYNTHETIC: 1", "-f", "http://localhost:8080/health" ]
       interval: 10s
       timeout: 10s
       retries: 3
     # Uncomment to change payment gateway
     #environment:
       #PAYMENT_GATEWAY: "https://www.worldpay.com"
-    logging:
-      <<: *logging
+    logging: *logging
+
   dispatch:
     build:
       context: dispatch
+      network: host
     image: ${REPO}/rs-dispatch:${TAG}
     depends_on:
       - rabbitmq
     networks:
-      - robot-shop
-    logging:
-      <<: *logging
+      robot-shop:
+        ipv4_address: ${RS_SUBNET_PREFIX:-10.253.7}.27
+    extra_hosts: *hosts
+    logging: *logging
+
   web:
     build:
       context: web
+      network: host
       args:
         # agent key to download tracing libs
-        KEY: ${INSTANA_AGENT_KEY}
+        KEY: ${INSTANA_AGENT_KEY:-}
     image: ${REPO}/rs-web:${TAG}
     depends_on:
       - catalogue
       - user
+      - cart
       - shipping
+      - ratings
       - payment
     ports:
-      - "8085:8080"
+      - "${WEB_PORT:-8085}:8080"
     networks:
-      - robot-shop
+      robot-shop:
+        ipv4_address: ${RS_SUBNET_PREFIX:-10.253.7}.30
+    extra_hosts: *hosts
     healthcheck:
       test: [ "CMD", "curl", "-H", "X-INSTANA-SYNTHETIC: 1", "-f", "http://localhost:8080/" ]
       interval: 10s
@@ -164,9 +228,10 @@ services:
     # environment:
       # INSTANA_EUM_KEY: <your eum key>
       # INSTANA_EUM_REPORTING_URL: <your reporting url>
-    logging:
-      <<: *logging
+    logging: *logging
 
 networks:
   robot-shop:
-
+    ipam:
+      config:
+        - subnet: ${RS_SUBNET_PREFIX:-10.253.7}.0/24

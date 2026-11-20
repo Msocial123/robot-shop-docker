@@ -1,7 +1,7 @@
 #
 # Build the app
 #
-FROM php:7.4-apache
+FROM docker.io/library/php:7.4-apache
 
 # bullseye-security pool is inconsistent (404s); install from the main bullseye repo
 RUN sed -i "/debian-security/d" /etc/apt/sources.list \
@@ -20,7 +20,7 @@ WORKDIR /var/www/html
 
 COPY html/ /var/www/html
 
-COPY --from=composer /usr/bin/composer /usr/bin/composer
+COPY --from=docker.io/library/composer:2 /usr/bin/composer /usr/bin/composer
 RUN composer install
 
 # This is important. Symfony needs write permissions and we

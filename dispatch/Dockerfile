@@ -1,4 +1,4 @@
-FROM golang:1.24
+FROM docker.io/library/golang:1.24
 
 WORKDIR /go/src/app
 
